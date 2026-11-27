@@ -41,6 +41,7 @@ ap.add_argument("--temp", type=float, default=1.0)
 ap.add_argument("--scorer", default="roneneldan/TinyStories-33M")
 ap.add_argument("--scorer-tok", default="EleutherAI/gpt-neo-125M")
 ap.add_argument("--timing-reps", type=int, default=5)
+ap.add_argument("--ar-bs", type=int, default=8, help="AR scorer batch (32 x 600 tokens of 50k logits ran out of memory on 8 GB)")
 ap.add_argument("--out-dir", required=True)
 a = ap.parse_args()
 
@@ -87,8 +88,8 @@ slm = AutoModelForCausalLM.from_pretrained(a.scorer).cuda().eval()
 @torch.no_grad()
 def ar_nll(texts):
     out = []
-    for i in range(0, len(texts), 32):
-        enc = [[stok.eos_token_id] + stok(t)["input_ids"][:600] for t in texts[i:i + 32]]
+    for i in range(0, len(texts), a.ar_bs):
+        enc = [[stok.eos_token_id] + stok(t)["input_ids"][:600] for t in texts[i:i + a.ar_bs]]
         L = max(len(e) for e in enc)
         ids = torch.full((len(enc), L), stok.eos_token_id)
         mask = torch.zeros((len(enc), L))
