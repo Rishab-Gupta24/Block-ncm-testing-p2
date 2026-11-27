@@ -33,5 +33,8 @@ Environment, released NCM checkpoint and data: as in the block-ncm README (WSL2,
 
 ```
 docs/paper2_plan.md     the plan: goal, measured baselines, what to add, phases with go / no-go gates
+RESULTS.md              results log (measured numbers, predictions next to them)
+p2/                     evaluation (evaluate.py), consistency metric, rollouts, story loading
+experiments/            one script per experiment
 external/block-ncm/     Paper 1 code (submodule, pinned)
 ```
