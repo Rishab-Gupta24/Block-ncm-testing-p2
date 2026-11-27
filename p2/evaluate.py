@@ -46,14 +46,17 @@ ap.add_argument("--out", default="")
 a = ap.parse_args()
 
 EOS, PAD = eos_pad()
-sources = {}
+sources, b1 = {}, {}
 if a.real != "none":
     sources[f"real ({a.real})"] = (None, real_stories(a.n_real, a.M, a.real), None)
 for spec in a.samples:
     name, path = spec.split("=", 1) if "=" in spec else (os.path.basename(spec), spec)
     seeds, samples = load_samples(path)
-    lat = json.load(open(os.path.expanduser(path))).get("latency")
+    meta = json.load(open(os.path.expanduser(path)))
+    lat = meta.get("latency")
     sources[name] = (seeds, samples, lat)
+    if "latency_b1" in meta:  # measured at batch 1 by the generator (e.g. search_grid.py)
+        b1[name] = meta["latency_b1"]
 
 judges = {}
 if not a.cpu_only:
@@ -139,6 +142,8 @@ for name, (seeds, samples, lat) in sources.items():
     if lat:
         r["latency_s_per_story"] = float(sum(t for t, _ in lat[1:]) / max(1, sum(b for _, b in lat[1:])))
         r["latency_batch"] = int(max(b for _, b in lat))  # batched generation, not batch-1 latency
+    if name in b1:
+        r["latency_b1"] = b1[name]
     res[name], texts_of[name] = r, (samples, texts, seeds)
     print(f"{name}: rule-based metrics done ({len(samples)} stories)", flush=True)
 
@@ -173,6 +178,7 @@ rows = [("genPPL (GPT-2 L)", lambda r: r.get("genppl"), "{:.2f}"),
         ("protagonist kept", lambda r: r["consistency"]["protagonist_kept"], "{:.1%}"),
         ("protagonist replaced", lambda r: r["consistency"]["protagonist_replaced"], "{:.1%}"),
         ("plot twin >= 0.5", lambda r: r["plot_twin"], "{:.1%}"),
+        ("seconds per story, batch 1", lambda r: r.get("latency_b1"), "{:.3f}"),
         ("seconds per story (batched generation; batch 1: time_gen.py)", lambda r: r.get("latency_s_per_story"), "{:.3f}")]
 print("\n| | " + " | ".join(cols) + " |\n|---|" + "---|" * len(cols))
 for label, f, fmt in rows:
