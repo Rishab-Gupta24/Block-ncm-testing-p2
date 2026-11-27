@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Large artifacts (checkpoints, datasets, generations) live in WSL ~/ncm, never here
+*.pt
+*.bin
+*.npy
+*.pickle
+checkpoints/
+data/
+runs/
+eval/
+logs/
+
+# LaTeX build output
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+paper/main.pdf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Local email attachments and arXiv upload files (not part of the repo)
+for_professor/

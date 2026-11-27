@@ -1,0 +1,3 @@
+[submodule "external/block-ncm"]
+	path = external/block-ncm
+	url = https://github.com/Rishab-Gupta24/block-ncm.git
