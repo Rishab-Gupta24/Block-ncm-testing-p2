@@ -4,6 +4,72 @@ Newest first. Every number here is measured; predictions are written before each
 Paper 1 numbers and earlier experiments are in `external/block-ncm/RESULTS.md`. Model: the local Paper 1 run
 G=5 + halo 4 (`oursc_M4_G5_halo4`) unless stated; real stories come from the held-out file (`valid_bpe_8192.bin`).
 
+## 2026-11-27: Phase 2, search grid on the local G5+h4 run (`experiments/search_grid.py`, inference only)
+
+Plan search (n plans, the most likely kept) × best-of-K, 2 seeds × 256 stories per cell, T=1.0, M=4. Selectors:
+**ar** = lowest NLL under TinyStories-33M (a separate small AR model); **self** = highest mean log probability
+per code under Block-NCM itself. Seconds per story: batch 1, RTX 5050, median of 10, generation + decoding (+ AR
+scoring for "ar").
+
+genPPL (GPT-2 Large), ar selector (K=1: no selection):
+
+| plans \ K | 1 | 2 | 4 | 8 |
+|---|---|---|---|---|
+| 1 | 19.11 | 17.48 | 16.22 | 15.44 |
+| 2 | 18.31 | 16.81 | 15.65 | 14.78 |
+| 4 | 17.34 | 16.12 | 15.16 | 14.41 |
+| 8 | 16.97 | 15.63 | 14.79 | **14.12** |
+
+self selector: K=2/4/8 = 18.56/18.24/17.86 (1 plan), 16.55/16.28/15.97 (8 plans).
+
+Seconds per story at batch 1 (two runs of the timing loop, this one and the run before it):
+
+| plans \ K | 1 | 2 | 4 | 8 |
+|---|---|---|---|---|
+| 1 | 0.36–0.40 | 0.36–0.41 (+0.08 ar) | 0.52–0.53 (+0.09) | 0.95–0.96 (+0.12) |
+| 2 | 0.31 (0.81 once, an outlier) | 0.36–0.38 | 0.58 | 1.09–1.10 |
+| 4 | 0.34–0.35 | 0.41 | 0.71 | 1.38–1.41 |
+| 8 | 0.34 | 0.53–0.55 | 1.01–1.02 | 2.05–2.07 |
+
+Best quality for the time (ar selector unless noted):
+
+| seconds | best cell | genPPL | vs AR (≈6.3 s) | doubled / 1k | entropy | plot twin ≥ 0.5 |
+|---|---|---|---|---|---|---|
+| 0.36 | no search | 19.11 | 17× | 7.51 | 4.350 | 0.0% |
+| 0.34 | 8 plans, K=1 | **16.97** | 18× | 7.41 | 4.311 | 2.0% |
+| 0.55 | 8 plans, K=2, self | 16.55 | 11× | 7.40 | 4.315 | 3.1% |
+| 0.64 | 8 plans, K=2 | 15.63 | 10× | 6.71 | 4.294 | 3.1% |
+| 0.80 | 4 plans, K=4 | 15.16 | 8× | 6.12 | 4.289 | 2.1% |
+| 1.11 | 8 plans, K=4 | 14.79 | 5.7× | 6.13 | 4.281 | 4.3% |
+| 1.53 | 4 plans, K=8 | 14.41 | 4.1× | 5.71 | 4.281 | 0.8% |
+| 2.17 | 8 plans, K=8 | 14.12 | 2.9× | 5.44 | 4.272 | 4.1% |
+
+(Real held-out stories: 6.11. Paper 1: AR 9.9. The no-search cell, 19.11, matches Paper 1's 19.38 within seed
+noise; the stories differ because the batch size changes the random draws.)
+
+Prediction (written before the run) vs result:
+- ar, 8 plans, K=8: "about 15.5" → **14.12**, better than predicted; the two kinds of search mostly add up
+  (plans alone −2.1, K=8 alone −3.7, both −5.0 of a summed −5.8).
+- self selector "about 17" → 15.97 at 8 plans / K=8; self selection on its own is weak (K=8, 1 plan: −1.3 vs
+  −3.7 for ar). Most of self's gain comes from the plans, which are also chosen by Block-NCM's own likelihood.
+- entropy drop "at most 0.05" → 0.078 for ar (4.350 → 4.272), 0.025 for self. Slightly over the bound.
+- batch-1 time "about 0.6 s" → **2.07 s. Wrong.** Best-of-K is not close to free on this GPU: K=2 costs nothing,
+  but K=4 is 1.4× and K=8 2.6×. Plan search is free (8 plans at K=1: 0.34 s), because the plan levels are short.
+
+What this means:
+- **Plan search with 8 plans is a free gain of about 2 genPPL** (19.1 → 17.0 at the same time). It should be the
+  default from now on and the baseline every Paper 2 method is compared against.
+- **At the 5×-faster-than-AR limit (≈1.26 s) the bar is 14.8** (8 plans, K=4, ar). A new method that costs time
+  has to beat that at equal seconds.
+- The ar selector cuts doubled words (7.5 → 5.4 per 1k) because it reads the words; self does not (7.2–7.5).
+- Consistency (protagonist replaced 0.2–2.0%) does not change with search; it was already low for G5+h4.
+- Costs to watch: plot twins rise from 0–2% to 3–4% with many plans (real stories: 2.0%); ar picks slightly
+  shorter stories (415 → 403 tokens), self picks longer ones (up to 459).
+- Caveat: ar picks with one AR language model and is judged by another (GPT-2 Large). Part of the gain may be the
+  two judges agreeing rather than better stories; the second judge (Phase 1, not run yet) is needed before this
+  is a claim. Self-selected cells have no such overlap.
+- One seed of the model (local run). The Kaggle seed-2 model is running the same grid.
+
 ## 2026-11-27: Phase 2, where do doubled words come from? (`experiments/reroll_check.py`, inference only)
 
 512 free stories; then each story keeps its own codes for levels 1..keep and the rest is generated again.

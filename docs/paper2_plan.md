@@ -87,10 +87,13 @@ chunks and the cost in time. "Evidence" says what the estimate rests on.
 
 | # | addition | evidence | genPPL, 4 chunks | time |
 |---|---|---|---|---|
-| S1 | **Plan search + best-of-K together**, and MBR using NCM's own likelihood (no outside judge in the loop) | measured separately: −2.3 and −3.6 | −3 to −4.5 *est.* combined | 1.3–1.7× (0.5–0.65 s) |
+| S1 | **Plan search + best-of-K together**, and MBR using NCM's own likelihood (no outside judge in the loop) | **measured 2026-11-27** (local G5+h4, RESULTS.md): 8 plans alone −2.1 at no extra time; 8 plans + K=4 −4.3; 8 plans + K=8 −5.0 (TinyStories-33M picks); NCM's own likelihood picks −3.1 at 8 plans + K=8 | 19.1 → 17.0 (free) / 14.8 (1.1 s) / 14.1 (2.1 s) | 8 plans: +0; K=4: 1.4×; K=8: 2.6× |
 
-Search is also **the bar every new method must clear**: at batch 1 the GPU is mostly idle, so 8 parallel samples
-cost only about 1.5× the time. Any method that adds sequential passes must beat best-of-K at equal seconds.
+Search is also **the bar every new method must clear**. Measured: plan search is free (8 plans at 0.34 s), but
+best-of-K is not (K=4 1.4×, K=8 2.6× at batch 1 on the RTX 5050; the earlier "8 samples cost about 1.5×" was
+wrong). From now on the baseline is 8 plans (17.0 at 0.34 s); at the 5×-faster-than-AR limit (≈1.26 s) the bar is
+14.8 (8 plans, K=4). Any method that adds passes must beat that at equal seconds. Second judge still needed: the
+K>1 gains are picked by one AR model and scored by another.
 
 ### 3c. Add: the new method, "plan-first graph Block-NCM" (your sketches, adapted to the trained model)
 
