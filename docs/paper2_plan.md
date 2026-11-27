@@ -81,7 +81,8 @@ chunks and the cost in time. "Evidence" says what the estimate rests on.
 | T1 | **Mixed-length training** (stories of 2–6 chunks), so chunk embeddings 5–6 get trained | filling the embeddings alone, no training, cut the collapse by about half for both B2 (33.5 → 26.7) and G=5 (25.2 → 22.7) | 0 to −0.5 *est.* | −2 to −3 *est.* | +0 |
 | T2 | **Recipe fix:** mix stories of all lengths into training | single-chunk test: 21.0 → 17.0 | −1.5 to −3 *est.* | similar | +0 |
 | T3 | Halo 8 instead of 4 for G=5 | at G=3: 21.0 → 20.4 | −0.3 to −0.6 *est.* | small | about +10% compute, ~+0 latency |
-| T4 | Position fix for cross-chunk levels (position interpolation) | addresses the other half of the collapse; inference-only test first | ~0 | −1 to −3 *est.* for B2 / G=5 | +0 |
+| T4 | ~~Position fix for cross-chunk levels (position interpolation)~~ **dropped** | **tested 2026-11-27:** adds nothing on top of chunk-embedding fill for G=5 (20.48 → 20.63), destroys B2 (75.9); it does make 6-chunk stories use all chunks (474 → 621 tokens), so it may return as a length control | 0 | 0 | +0 |
+| T5 | **Generate in fp32, not bf16** | **measured 2026-11-27:** G=5 at 6 chunks 25.1 (bf16) → 21.7 (fp32), at 4 chunks 19.6 → 19.1; no time cost at batch 1 | −0.5 | −3.4 | +0 |
 
 ### 3b. Add: test-time search (no training)
 

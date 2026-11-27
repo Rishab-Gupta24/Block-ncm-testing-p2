@@ -4,6 +4,62 @@ Newest first. Every number here is measured; predictions are written before each
 Paper 1 numbers and earlier experiments are in `external/block-ncm/RESULTS.md`. Model: the local Paper 1 run
 G=5 + halo 4 (`oursc_M4_G5_halo4`) unless stated; real stories come from the held-out file (`valid_bpe_8192.bin`).
 
+## 2026-11-27: Generation precision: bf16 explains the "local outlier" at 6 chunks (`experiments/position_interp.py --amp`)
+
+Same script, same seeds (2 × 256), same batch size; only the autocast dtype during generation differs (decoding
+to tokens is fp32 in both, as in Paper 1).
+
+| | 6 chunks, bf16 | 6 chunks, fp32 | 4 chunks, bf16 | 4 chunks, fp32 |
+|---|---|---|---|---|
+| G5+h4 genPPL | **25.10** | **21.72** | 19.60 | 19.07 |
+| G5+h4 doubled words / 1k | 22.2 | 13.0 | 7.98 | 7.51 |
+| B2 genPPL | 33.63 | 30.94 | — | — |
+| B2 doubled words / 1k | 43.9 | 34.5 | — | — |
+
+- bf16 reproduces Paper 1's local 6-chunk numbers (G5+h4 25.19, B2 33.53; rescored with p2.evaluate, exact match),
+  so the scorer is not the cause.
+- **The local run's 25.2 at 6 chunks, which block-ncm's RESULTS.md called an unexplained outlier (Kaggle seeds:
+  20.0 / 21.0 / 20.8, fp16 on T4), comes from bf16 generation.** In fp32 the same model gives 21.7, in line with
+  the Kaggle seeds. The listed alternatives (local encoding, seed) are not needed.
+- At 4 chunks the effect is small (−0.5, about seed noise, same direction as the search grid's fp32 19.11 vs
+  Paper 1's 19.38). bf16 hurts most where the model is already off its training length.
+- fp32 costs no time at batch 1 (search grid, fp32: 0.36–0.40 s vs Paper 1's 0.37–0.38 s under autocast).
+- Paper 1's claims stand: its 6-chunk table uses the Kaggle 3-seed means, B2 still collapses in fp32 (30.9 vs 18.7
+  at 4 chunks) and G5 still holds. Paper 1's text is frozen; this goes in its next version.
+- **Paper 2 generates in fp32 from now on.** All Paper 2 numbers so far (search grid, position test) are fp32; the
+  Phase 1 table rescored Paper 1's bf16 samples.
+- Not tested: which operation is sensitive (a guess: attention or rotary angles over the longer global sequence);
+  one seed pair per cell.
+
+## 2026-11-27: Phase 2, position interpolation at 6 chunks (`experiments/position_interp.py`, inference only)
+
+6 chunks, fp32, 2 seeds × 256, T=1.0. "fill" = chunk embeddings 5–8 set to chunk 4's; "interp" = cross-chunk
+(global) positions multiplied by 4/6, so the plan of 6 chunks spans the positions of 4. The scale-1 wrapper gives
+identical codes to the unwrapped model (checked for both runs).
+
+| | base | fill | interp | fill + interp |
+|---|---|---|---|---|
+| G5+h4 genPPL | 21.72 | **20.48** | 20.90 | 20.63 |
+| G5+h4 mean tokens | 474 | 464 | **621** | 591 |
+| G5+h4 doubled words / 1k | 13.0 | 10.0 | 10.1 | 10.1 |
+| G5+h4 entropy | 4.313 | 4.322 | 4.419 | 4.403 |
+| B2 genPPL | 30.94 | **25.99** | 75.89 | 74.97 |
+| B2 doubled words / 1k | 34.5 | 25.6 | 198.7 | 199.3 |
+
+Prediction (written before the run): fill + interp G5+h4 about 21 from fill's 22.7 (bf16 numbers), B2 about 23 from
+26.7; interp alone helps less than fill. Result:
+- **Wrong for genPPL.** For G5+h4, interp adds nothing on top of fill (20.63 vs 20.48). The rest of the 6-chunk gap
+  is not unseen positions. Mixed-length training (T1) stays the fix; T4 is dropped as a quality fix.
+- **Wrong, badly, for B2:** interp destroys it (75.9, 199 doubled words per 1k). In B2 the word-level levels are
+  global too, so squeezing their positions scrambles word order. Interpolation is only safe on short coarse levels.
+- **New: interp changes story length.** Without it, 6-chunk stories end at about 470 tokens, the length of a
+  4-chunk story; with it they run to 590–620 tokens and use the extra chunks, with higher entropy and the same
+  genPPL. The position scale acts as a length control for the plan. Relevant to "ending on time" (plan slots,
+  Phase 4); not pursued now.
+- Fill confirms the earlier result in fp32: G5+h4 −1.2, B2 −5.0.
+- Caveat: "protagonist kept" rises from 62% to 96% with interp only because stories reach the second half of the
+  6 chunks; the metric depends on length at 6 chunks.
+
 ## 2026-11-27: Phase 2, search grid on the local G5+h4 run (`experiments/search_grid.py`, inference only)
 
 Plan search (n plans, the most likely kept) × best-of-K, 2 seeds × 256 stories per cell, T=1.0, M=4. Selectors:
