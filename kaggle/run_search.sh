@@ -37,7 +37,7 @@ run_one() {  # run_one GPU MODEL_PT
   local gpu=$1 pt=$2 d name o
   d=$(dirname $pt); name=$(basename $d)_$(echo $pt | md5sum | cut -c1-6); o=$OUT/search_$name
   log "[gpu $gpu] search grid $d"
-  (cd $REPO && CUDA_VISIBLE_DEVICES=$gpu python -W ignore experiments/search_grid.py --run $d --timing-reps 1 \
+  (cd $REPO && CUDA_VISIBLE_DEVICES=$gpu python -W ignore experiments/search_grid.py --run $d --timing-reps 1 --rows 32 \
      --out-dir $o > $o.txt 2>&1)
   log "[gpu $gpu] evaluate $d"
   (cd $REPO && CUDA_VISIBLE_DEVICES=$gpu python -W ignore -m p2.evaluate --M 4 --real none \
