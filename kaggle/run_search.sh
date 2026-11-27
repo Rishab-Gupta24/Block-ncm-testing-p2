@@ -22,6 +22,7 @@ nvidia-smi -L | tee $OUT/gpu.txt
 [ -d $NCM_ROOT ] || git clone -q https://github.com/HazyResearch/ncm $NCM_ROOT
 (cd $NCM_ROOT && git checkout -q c702742)
 sed -i '651s/z_hat.add_(z_q_level)/z_hat = z_hat + z_q_level/' $NCM_ROOT/models/quant.py
+[ -e ~/ncm ] || ln -s $NCM_ROOT ~/ncm   # block-ncm's error_types.py hard-codes ~/ncm
 pip install -q omegaconf hydra-core "transformers>=4.51" huggingface_hub regex 2>&1 | tail -2
 python - <<EOF
 from huggingface_hub import snapshot_download
@@ -42,7 +43,7 @@ run_one() {  # run_one GPU MODEL_PT
   log "[gpu $gpu] evaluate $d"
   (cd $REPO && CUDA_VISIBLE_DEVICES=$gpu python -W ignore -m p2.evaluate --M 4 --real none \
      --samples $(ls $o/*_samples.json | sed "s|.*/\(.*\)_samples.json|\1=&|") --out $o/eval.json > $o.eval.txt 2>&1)
-  if [ -s $o/eval.json ]; then log "[gpu $gpu] ok: $o/eval.json"; else log "[gpu $gpu] FAILED: $o"; tail -30 $o.txt $o.eval.txt | tee -a $OUT/progress.txt; fi
+  if [ -s $o/eval.json ]; then log "[gpu $gpu] ok: $o/eval.json"; else log "[gpu $gpu] FAILED: $o"; for f in $o.txt $o.eval.txt; do tail -n 30 $f; done | tee -a $OUT/progress.txt; fi
 }
 
 i=0

@@ -36,7 +36,8 @@ ap.add_argument("--M", type=int, default=6)
 ap.add_argument("--conds", nargs="+", default=["base", "fill", "interp", "fill_interp"])
 ap.add_argument("--seeds", type=int, nargs="+", default=[42, 0])
 ap.add_argument("--n", type=int, default=256)
-ap.add_argument("--bs", type=int, default=32)
+ap.add_argument("--bs", type=int, default=16, help="32 x 6 chunks ran out of memory on the 8 GB GPU")
+ap.add_argument("--amp", default="none", choices=["none", "bf16", "fp16"], help="autocast during generation (Paper 1 sampled in bf16)")
 ap.add_argument("--temp", type=float, default=1.0)
 ap.add_argument("--out-dir", required=True)
 a = ap.parse_args()
@@ -86,13 +87,14 @@ for run in a.runs:
             torch.manual_seed(seed)
             for s in range(0, a.n, a.bs):
                 B = min(a.bs, a.n - s)
-                with torch.no_grad():
+                amp = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(a.amp)
+                with torch.no_grad(), torch.autocast("cuda", dtype=amp or torch.float32, enabled=amp is not None):
                     codes = model.generate(B, a.M, G, temperature=a.temp)
                     _, zl = model.vq.idx_to_zhats(codes.reshape(B * a.M, -1), return_zlevels=True)
                     ids = model.vqvae.decoder(zl[-1].float()).argmax(-1).view(B, a.M, C).tolist()
                 samples += [(seed, row) for row in ids]
-        tag = f"{name}_{cond}"
-        json.dump({"seeds": a.seeds, "samples": samples, "run": run_dir, "G": G, "M": a.M, "cond": cond,
+        tag = f"{name}_{cond}" + (f"_{a.amp}" if a.amp != "none" else "")
+        json.dump({"seeds": a.seeds, "samples": samples, "run": run_dir, "G": G, "M": a.M, "cond": cond, "amp": a.amp,
                    "scale": M_train / a.M if "interp" in cond else 1.0},
                   open(os.path.join(out_dir, f"{tag}_samples.json"), "w"))
         summary[tag] = len(samples)
