@@ -93,8 +93,9 @@ chunks and the cost in time. "Evidence" says what the estimate rests on.
 Search is also **the bar every new method must clear**. Measured: plan search is free (8 plans at 0.34 s), but
 best-of-K is not (K=4 1.4×, K=8 2.6× at batch 1 on the RTX 5050; the earlier "8 samples cost about 1.5×" was
 wrong). From now on the baseline is 8 plans (17.0 at 0.34 s); at the 5×-faster-than-AR limit (≈1.26 s) the bar is
-14.8 (8 plans, K=4). Any method that adds passes must beat that at equal seconds. Second judge still needed: the
-K>1 gains are picked by one AR model and scored by another.
+14.8 (8 plans, K=4). Any method that adds passes must beat that at equal seconds. Second judge done (2026-11-28):
+Qwen2.5-1.5B gives the same gains as GPT-2 Large within 0.7 percentage points, so they are not one AR model
+pleasing another. A blind side-by-side is still to come.
 
 ### 3c. Add: the new method, "plan-first graph Block-NCM" (your sketches, adapted to the trained model)
 

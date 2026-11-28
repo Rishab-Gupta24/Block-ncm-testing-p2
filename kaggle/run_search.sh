@@ -26,7 +26,7 @@ sed -i '651s/z_hat.add_(z_q_level)/z_hat = z_hat + z_q_level/' $NCM_ROOT/models/
 pip install -q omegaconf hydra-core "transformers>=4.51" huggingface_hub regex 2>&1 | tail -2
 python - <<EOF
 from huggingface_hub import snapshot_download
-snapshot_download("hazyresearch/ncm-checkpoints", allow_patterns=["tinystories/*"], local_dir="$NCM_ROOT/checkpoints")
+snapshot_download("hazyresearch/ncm-checkpoints", revision="d342ce8aaea58830eef3b8ad473664673e41f692", allow_patterns=["tinystories/*"], local_dir="$NCM_ROOT/checkpoints")
 EOF
 
 mapfile -t MODELS < <(find /kaggle/input -path "*oursc_M4_G5_halo4_s*/model.pt" | sort)

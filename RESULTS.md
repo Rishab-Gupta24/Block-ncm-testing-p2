@@ -4,6 +4,65 @@ Newest first. Every number here is measured; predictions are written before each
 Paper 1 numbers and earlier experiments are in `external/block-ncm/RESULTS.md`. Model: the local Paper 1 run
 G=5 + halo 4 (`oursc_M4_G5_halo4`) unless stated; real stories come from the held-out file (`valid_bpe_8192.bin`).
 
+## 2026-11-28: Kaggle seed-2 search grid is invalid: the NCM codec changed on Hugging Face
+
+The Kaggle search grid on seed 2 of G=5 + halo 4 (`kaggle/run_search.sh`) gave genPPL 191 with no search and 159
+at 8 plans + K=8 (ar), entropy 3.25 and 30–35 doubled words per 1k words. Locally the no-search cell is 19.1
+(entropy 4.35, 7.5 doubled words). These stories are broken, not misjudged. **None of those numbers are results.**
+
+Diagnostic (`kaggle/diag_precision.sh`): Paper 1's own `sample_eval.py --fast` on the same model, 128 stories, seed 42:
+
+| | fp16 (Paper 1's Kaggle setting) | fp32 |
+|---|---|---|
+| genPPL | 189.3 | 189.2 |
+| entropy | 3.24 | 3.23 |
+
+Paper 1 scored this model at 19.6 on Kaggle (2026-11-20). Precision is not the cause.
+
+Cause: on 2026-11-23 HazyResearch pushed three commits to `hazyresearch/ncm-checkpoints` that replace the
+TinyStories generator and its VQ-VAE codec ("Release TinyStories 30k trainer EMA with its paired 80k VQ-VAE").
+Our Kaggle scripts downloaded `main`, so the Block-NCM model's codes were decoded by a codec it was not trained
+with. The local copy matches the earlier revision `d342ce8` exactly (sha256 of `generator.pt` 0acaf4f7…, of
+`tokenizer.pt` 76e26003…); `main` now has different files (901d7fa6…, 85ce688e…). `hazyresearch/ncm-datasets`
+did not change. Kaggle also had torch 2.11.0+cu130 and transformers 5.20.2.
+
+Fix: every download now pins `revision="d342ce8aaea58830eef3b8ad473664673e41f692"` (`kaggle/run_search.sh`,
+`run_eval.sh`, `diag_precision.sh`, and block-ncm's Kaggle scripts and README). Not verified on Kaggle yet: the
+pinned diagnostic should give about 19.6 again before the seed-2 grid is rerun. All local results and Paper 1's
+Kaggle seeds used the earlier codec and stand.
+
+## 2026-11-28: Second judge (Qwen2.5-1.5B) on the search grid (`p2/evaluate.py --ref-model Qwen/Qwen2.5-1.5B`)
+
+The same 28 cells (512 stories each, local G5+h4), scored again by Qwen2.5-1.5B (bf16 weights, fp32 log-probs,
+batch 1). Qwen has a different tokenizer (151k vocabulary, about 5% fewer tokens per story), is twice the size of
+GPT-2 Large, and was trained on different data. Ratios are relative to the no-search cell under the same judge.
+
+| cell | GPT-2 Large | Qwen2.5-1.5B | ratio GPT-2 L | ratio Qwen |
+|---|---|---|---|---|
+| no search (1 plan, K=1) | 19.11 | 18.36 | 1.000 | 1.000 |
+| 8 plans, K=1 | 16.97 | 16.33 | 0.888 | 0.889 |
+| 1 plan, K=8, self | 17.86 | 17.18 | 0.935 | 0.936 |
+| 1 plan, K=8, ar | 15.44 | 14.77 | 0.808 | 0.804 |
+| 8 plans, K=4, ar | 14.79 | 14.16 | 0.774 | 0.771 |
+| 8 plans, K=8, self | 15.97 | 15.34 | 0.836 | 0.835 |
+| 8 plans, K=8, ar | 14.12 | 13.49 | 0.739 | 0.735 |
+| real held-out stories | 6.11 | 3.98 | — | — |
+
+- **The search gains survive a second judge.** Over all 28 cells the two judges correlate at 0.9996 (Pearson;
+  Spearman 0.999). Each cell's gain over no search agrees within 0.7 percentage points, and the ar selector's
+  gain is the same size under Qwen (−26.5% at 8 plans + K=8, vs −26.1% under GPT-2 Large). So the gain is not
+  GPT-2 Large happening to agree with TinyStories-33M, which picks the stories.
+- The close match is real, not a scoring bug. 64 stories scored one at a time with each judge: the models are
+  `GPT2LMHeadModel` and `Qwen2ForCausalLM`, with 423 vs 403 tokens per story, and per-story log-perplexity
+  correlates at 0.956 (largest gap 0.20 nats). They differ story by story but agree on which settings are better.
+- Qwen finds real stories far more likely than GPT-2 Large does (3.98 vs 6.11), while generated stories score only
+  4% lower. TinyStories has been public since 2023 and is probably in Qwen's training data. So under Qwen the gap
+  to real stories looks larger (13.49 vs 3.98, 3.4×; GPT-2 Large: 2.3×). Do not compare Qwen's absolute numbers
+  with real stories.
+- Seam ratios under Qwen are 0.01–0.04 higher than under GPT-2 Large (1.14–1.24 vs 1.11–1.20).
+- What is left: both judges and the selector are AR language models. The blind side-by-side on about 100 story
+  pairs (plan, Phase 1) is still needed before claiming the stories are better to read.
+
 ## 2026-11-27: Generation precision: bf16 explains the "local outlier" at 6 chunks (`experiments/position_interp.py --amp`)
 
 Same script, same seeds (2 × 256), same batch size; only the autocast dtype during generation differs (decoding
@@ -121,10 +180,11 @@ What this means:
 - Consistency (protagonist replaced 0.2–2.0%) does not change with search; it was already low for G5+h4.
 - Costs to watch: plot twins rise from 0–2% to 3–4% with many plans (real stories: 2.0%); ar picks slightly
   shorter stories (415 → 403 tokens), self picks longer ones (up to 459).
-- Caveat: ar picks with one AR language model and is judged by another (GPT-2 Large). Part of the gain may be the
-  two judges agreeing rather than better stories; the second judge (Phase 1, not run yet) is needed before this
-  is a claim. Self-selected cells have no such overlap.
-- One seed of the model (local run). The Kaggle seed-2 model is running the same grid.
+- Caveat (resolved 2026-11-28): ar picks with one AR language model and is judged by another (GPT-2 Large), so
+  part of the gain could have been the two agreeing. A second judge, Qwen2.5-1.5B, gives the same gains within
+  0.7 percentage points (see 2026-11-28). A blind side-by-side is still to come.
+- One seed of the model (local run). The first Kaggle seed-2 grid was invalid (NCM codec changed on Hugging Face,
+  see 2026-11-28); a rerun with the pinned revision is pending.
 
 ## 2026-11-27: Phase 2, where do doubled words come from? (`experiments/reroll_check.py`, inference only)
 
@@ -199,4 +259,4 @@ from the second half while a name new to the second half is used there at least 
 (`~/ncm/runs/p2/consistency_read.txt`): every "replaced" story read is a real switch (G5+h4 #413 Lily → Sara,
 #84 Anna → Sara, B0 #305 Tom → Anna/Ben). "Kept" is lenient (B0 #100 keeps its protagonist while a stray name
 appears mid-story), so "replaced" is a lower bound on name mix-ups. False names seen: garbled words ("Cakech")
-and "Well" from `"Well done"` (now excluded). Second judge: not run yet (needs a model download).
+and "Well" from `"Well done"` (now excluded). Second judge: Qwen2.5-1.5B, run 2026-11-28 on the search grid.
