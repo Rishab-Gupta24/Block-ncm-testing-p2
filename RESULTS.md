@@ -4,6 +4,31 @@ Newest first. Every number here is measured; predictions are written before each
 Paper 1 numbers and earlier experiments are in `external/block-ncm/RESULTS.md`. Model: the local Paper 1 run
 G=5 + halo 4 (`oursc_M4_G5_halo4`) unless stated; real stories come from the held-out file (`valid_bpe_8192.bin`).
 
+## 2026-11-28: Phase 2, search grid on Kaggle seed 2 (pinned codec; `kaggle/run_search.sh`, notebook Version 3)
+
+First the fix was checked: with `revision=d342ce8` pinned, Paper 1's `sample_eval.py --fast` on seed 2 gives
+genPPL **19.47 (fp16) / 19.56 (fp32)**, entropy 4.38 (Paper 1: 19.6). The codec was the whole problem.
+
+Same 28-cell grid as the local run (512 stories per cell, fp32, GPT-2 Large). Seconds per story are from the T4
+(slower than the RTX 5050), so only the quality columns are compared.
+
+| cell | seed 2 (Kaggle) | ratio | local seed | ratio | 2-seed mean |
+|---|---|---|---|---|---|
+| no search (1 plan, K=1) | 19.74 | 1.000 | 19.11 | 1.000 | 19.4 |
+| 8 plans, K=1 | 17.19 | 0.871 | 16.97 | 0.888 | 17.1 |
+| 1 plan, K=8, self | 18.02 | 0.913 | 17.86 | 0.935 | 17.9 |
+| 1 plan, K=8, ar | 15.68 | 0.794 | 15.44 | 0.808 | 15.6 |
+| 8 plans, K=4, ar | 14.89 | 0.754 | 14.79 | 0.774 | 14.8 |
+| 8 plans, K=8, self | 16.30 | 0.826 | 15.97 | 0.836 | 16.1 |
+| 8 plans, K=8, ar | **14.23** | 0.721 | **14.12** | 0.739 | **14.2** |
+
+- **The search result replicates on a second seed.** Every cell ranks the same, and seed 2 gains slightly more
+  (−27.9% at 8 plans + K=8 ar vs −26.1% locally). 8 plans alone is again the free gain (−2.6 vs −2.1).
+- Side effects repeat too: ar cuts doubled words (7.35 → 5.64 per 1k words; self 6.7–7.9), entropy falls by at
+  most 0.095 (4.381 → 4.286), protagonist replaced stays at 0.0–2.1%, plot twins at most 2.5%, seam ratio
+  1.11–1.18 with no trend.
+- Two seeds (one local, one Kaggle), one judge (GPT-2 Large) for seed 2; the Qwen check was on the local seed.
+
 ## 2026-11-28: Kaggle seed-2 search grid is invalid: the NCM codec changed on Hugging Face
 
 The Kaggle search grid on seed 2 of G=5 + halo 4 (`kaggle/run_search.sh`) gave genPPL 191 with no search and 159
@@ -27,8 +52,8 @@ with. The local copy matches the earlier revision `d342ce8` exactly (sha256 of `
 did not change. Kaggle also had torch 2.11.0+cu130 and transformers 5.20.2.
 
 Fix: every download now pins `revision="d342ce8aaea58830eef3b8ad473664673e41f692"` (`kaggle/run_search.sh`,
-`run_eval.sh`, `diag_precision.sh`, and block-ncm's Kaggle scripts and README). Not verified on Kaggle yet: the
-pinned diagnostic should give about 19.6 again before the seed-2 grid is rerun. All local results and Paper 1's
+`run_eval.sh`, `diag_precision.sh`, and block-ncm's Kaggle scripts and README). **Verified the same day:** the
+pinned diagnostic gives 19.47 (fp16) / 19.56 (fp32), and the seed-2 grid was rerun (entry above). All local results and Paper 1's
 Kaggle seeds used the earlier codec and stand.
 
 ## 2026-11-28: Second judge (Qwen2.5-1.5B) on the search grid (`p2/evaluate.py --ref-model Qwen/Qwen2.5-1.5B`)
@@ -184,7 +209,7 @@ What this means:
   part of the gain could have been the two agreeing. A second judge, Qwen2.5-1.5B, gives the same gains within
   0.7 percentage points (see 2026-11-28). A blind side-by-side is still to come.
 - One seed of the model (local run). The first Kaggle seed-2 grid was invalid (NCM codec changed on Hugging Face,
-  see 2026-11-28); a rerun with the pinned revision is pending.
+  see 2026-11-28); the rerun with the pinned revision replicates this grid (2026-11-28, seed 2).
 
 ## 2026-11-27: Phase 2, where do doubled words come from? (`experiments/reroll_check.py`, inference only)
 

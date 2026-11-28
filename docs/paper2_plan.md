@@ -95,7 +95,8 @@ best-of-K is not (K=4 1.4×, K=8 2.6× at batch 1 on the RTX 5050; the earlier "
 wrong). From now on the baseline is 8 plans (17.0 at 0.34 s); at the 5×-faster-than-AR limit (≈1.26 s) the bar is
 14.8 (8 plans, K=4). Any method that adds passes must beat that at equal seconds. Second judge done (2026-11-28):
 Qwen2.5-1.5B gives the same gains as GPT-2 Large within 0.7 percentage points, so they are not one AR model
-pleasing another. A blind side-by-side is still to come.
+pleasing another. A blind side-by-side is still to come. Seed 2 (Kaggle, 2026-11-28) replicates the grid: 19.7 →
+17.2 (8 plans) → 14.9 (8 plans, K=4) → 14.2 (8 plans, K=8); two-seed means 19.4 / 17.1 / 14.8 / 14.2.
 
 ### 3c. Add: the new method, "plan-first graph Block-NCM" (your sketches, adapted to the trained model)
 
