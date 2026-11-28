@@ -68,6 +68,8 @@ if not a.cpu_only:
     def load_judge(mid):
         tok = AutoTokenizer.from_pretrained(mid)
         lm = AutoModelForCausalLM.from_pretrained(mid, torch_dtype=torch.float32 if "gpt2" in mid else torch.bfloat16)
+        if "gpt2" not in mid:  # bf16 weights to fit 8 GB, but log-probs in fp32 so per-token NLL is not rounded
+            lm.register_forward_hook(lambda m, i, o: o.__setitem__("logits", o.logits.float()) or o)
         return tok, lm.cuda().eval()
 
     judges["genppl"] = a.ref_model
